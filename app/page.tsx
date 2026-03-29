@@ -1,8 +1,9 @@
 "use client"
 
-import { AppProvider, useApp } from "@/lib/app-context"
-import { RoleSelection } from "@/components/onboarding/role-selection"
-import { AccountSetup } from "@/components/onboarding/account-setup"
+import { useEffect } from "react"
+import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
+import { useApp } from "@/lib/app-context"
 import { SwimmerDashboard } from "@/components/dashboards/swimmer-dashboard"
 import { ParentDashboard } from "@/components/dashboards/parent-dashboard"
 import { CoachDashboard } from "@/components/dashboards/coach-dashboard"
@@ -12,26 +13,62 @@ import { Pricing } from "@/components/subscription/pricing"
 import { ProfileManagement } from "@/components/profile-management"
 import { EditProfile } from "@/components/edit-profile"
 import { Paywall } from "@/components/subscription/paywall"
-import { AppBootstrap } from "@/components/app-bootstrap"
+
+const SETUP_VIEWS = new Set([
+  "onboarding",
+  "setup-swimmer",
+  "setup-parent",
+  "setup-coach",
+])
+
+function HomeGate({ children }: { children: React.ReactNode }) {
+  const { isLoaded, userId } = useAuth()
+  const { user, accountHydrated, currentView, setCurrentView } = useApp()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoaded || !accountHydrated) return
+    if (!userId || !user) {
+      router.replace("/onboarding")
+    }
+  }, [isLoaded, accountHydrated, userId, user, router])
+
+  useEffect(() => {
+    if (!user) return
+    if (SETUP_VIEWS.has(currentView)) {
+      setCurrentView("dashboard")
+    }
+  }, [user, currentView, setCurrentView])
+
+  if (!isLoaded || !accountHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm bg-background">
+        Loading…
+      </div>
+    )
+  }
+
+  if (userId && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm bg-background">
+        Redirecting…
+      </div>
+    )
+  }
+
+  return <>{children}</>
+}
 
 function AppContent() {
   const { currentView, user, showPaywall } = useApp()
 
   const renderView = () => {
     switch (currentView) {
-      case "onboarding":
-        return <RoleSelection />
-      case "setup-swimmer":
-        return <AccountSetup role="swimmer" />
-      case "setup-parent":
-        return <AccountSetup role="parent" />
-      case "setup-coach":
-        return <AccountSetup role="coach" />
       case "dashboard":
         if (user?.role === "swimmer") return <SwimmerDashboard />
         if (user?.role === "parent") return <ParentDashboard />
         if (user?.role === "coach") return <CoachDashboard />
-        return <RoleSelection />
+        return null
       case "log-swim":
         return <SwimLogging />
       case "analytics":
@@ -43,7 +80,7 @@ function AppContent() {
       case "edit-profile":
         return <EditProfile />
       default:
-        return <RoleSelection />
+        return null
     }
   }
 
@@ -57,10 +94,8 @@ function AppContent() {
 
 export default function Home() {
   return (
-    <AppProvider>
-      <AppBootstrap>
-        <AppContent />
-      </AppBootstrap>
-    </AppProvider>
+    <HomeGate>
+      <AppContent />
+    </HomeGate>
   )
 }

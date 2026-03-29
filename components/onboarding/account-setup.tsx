@@ -16,6 +16,7 @@ import {
   Mail,
   ChevronRight,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useApp, UserRole } from "@/lib/app-context"
 import { completeOnboardingAction } from "@/lib/actions/app-data"
 
@@ -26,10 +27,10 @@ interface AccountSetupProps {
 export function AccountSetup({ role }: AccountSetupProps) {
   const {
     setUser,
-    setCurrentView,
     setSelectedChild,
     setSelectedAthlete,
   } = useApp()
+  const router = useRouter()
   const { user: clerkUser, isSignedIn } = useUser()
   const prefilled = useRef(false)
   const [name, setName] = useState("")
@@ -40,13 +41,17 @@ export function AccountSetup({ role }: AccountSetupProps) {
 
   useEffect(() => {
     if (!clerkUser || prefilled.current) return
-    setName(clerkUser.fullName || "")
+    const fromClerk =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
+      clerkUser.fullName ||
+      ""
+    setName(fromClerk)
     setEmail(clerkUser.primaryEmailAddress?.emailAddress || "")
     prefilled.current = true
   }, [clerkUser])
 
   const handleBack = () => {
-    setCurrentView("onboarding")
+    router.push("/onboarding")
   }
 
   const addChild = () => {
@@ -123,7 +128,7 @@ export function AccountSetup({ role }: AccountSetupProps) {
         } else {
           setSelectedAthlete(null)
         }
-        setCurrentView("dashboard")
+        router.replace("/")
         toast.success("Profile saved.")
       }
     } finally {
@@ -158,8 +163,8 @@ export function AccountSetup({ role }: AccountSetupProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col safe-area-inset scroll-bounce">
-      <div className="flex items-center gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-border">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-background flex flex-col safe-area-inset scroll-bounce">
+      <div className="flex items-center gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <Button
           variant="ghost"
           size="icon"

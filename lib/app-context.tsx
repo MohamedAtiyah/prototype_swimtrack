@@ -14,6 +14,9 @@ export type {
 interface AppContextType {
   user: User | null
   setUser: (user: User | null) => void
+  /** True after Clerk is ready and loadAppState has finished for this session. */
+  accountHydrated: boolean
+  setAccountHydrated: (v: boolean) => void
   currentView: string
   setCurrentView: (view: string) => void
   selectedChild: Swimmer | null
@@ -29,7 +32,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [currentView, setCurrentView] = useState("onboarding")
+  const [accountHydrated, setAccountHydrated] = useState(false)
+  const [currentView, setCurrentView] = useState("dashboard")
   const [selectedChild, setSelectedChild] = useState<Swimmer | null>(null)
   const [selectedAthlete, setSelectedAthlete] = useState<Swimmer | null>(null)
   const [showPaywall, setShowPaywall] = useState(false)
@@ -48,6 +52,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         setUser,
+        accountHydrated,
+        setAccountHydrated,
         currentView,
         setCurrentView,
         selectedChild,

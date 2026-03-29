@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { User, Users, Medal, ChevronRight, Waves } from "lucide-react"
-import { useApp, UserRole } from "@/lib/app-context"
+import type { UserRole } from "@/lib/app-context"
 import { cn } from "@/lib/utils"
 
 const roles = [
@@ -33,11 +34,11 @@ const roles = [
 
 export function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<UserRole>(null)
-  const { setCurrentView } = useApp()
+  const router = useRouter()
 
   const handleContinue = () => {
     if (selectedRole) {
-      setCurrentView(`setup-${selectedRole}`)
+      router.push(`/onboarding?role=${selectedRole}`)
     }
   }
 
@@ -126,10 +127,7 @@ export function RoleSelection() {
         </Button>
 
         <p className="text-center text-sm text-muted-foreground mt-4">
-          Already have an account?{" "}
-          <button className="text-primary font-medium">
-            Sign in
-          </button>
+          Use the Sign in button in the top bar if you already have an account.
         </p>
       </div>
     </div>

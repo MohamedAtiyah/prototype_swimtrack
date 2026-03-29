@@ -31,8 +31,8 @@ export function ProfileManagement() {
 
   const handleLogout = () => {
     setUser(null)
-    setCurrentView("onboarding")
-    void signOut({ redirectUrl: "/" })
+    setCurrentView("dashboard")
+    void signOut({ redirectUrl: "/onboarding" })
   }
 
   const getInitials = (name: string) => {

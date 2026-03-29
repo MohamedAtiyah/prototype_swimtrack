@@ -9,6 +9,7 @@ import {
   UserButton,
 } from '@clerk/nextjs'
 import { Toaster } from 'sonner'
+import { Providers } from '@/components/providers'
 import './globals.css'
 
 const inter = Inter({
@@ -63,7 +64,11 @@ export default async function RootLayout({
       <body
         className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        <ClerkProvider>
+        <ClerkProvider
+          signInFallbackRedirectUrl="/onboarding"
+          signUpFallbackRedirectUrl="/onboarding"
+        >
+          <Providers>
           <header className="sticky top-0 z-[100] flex items-center justify-end gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Show when="signed-out">
               <SignInButton mode="modal">
@@ -96,6 +101,7 @@ export default async function RootLayout({
           {children}
           <Toaster richColors position="top-center" />
           <Analytics />
+          </Providers>
         </ClerkProvider>
       </body>
     </html>
