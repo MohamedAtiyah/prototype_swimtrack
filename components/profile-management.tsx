@@ -1,5 +1,6 @@
 "use client"
 
+import { useClerk } from "@clerk/nextjs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,11 +26,13 @@ import {
 } from "lucide-react"
 
 export function ProfileManagement() {
+  const { signOut } = useClerk()
   const { setCurrentView, user, setUser } = useApp()
 
   const handleLogout = () => {
     setUser(null)
     setCurrentView("onboarding")
+    void signOut({ redirectUrl: "/" })
   }
 
   const getInitials = (name: string) => {

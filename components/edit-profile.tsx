@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useApp } from "@/lib/app-context"
+import { updateProfileAction } from "@/lib/actions/app-data"
 import { BottomNav } from "@/components/navigation/bottom-nav"
 import {
   Waves,
@@ -94,63 +96,57 @@ export function EditProfile() {
   
   // Swimmer-specific fields
   const [swimmerFields, setSwimmerFields] = useState<SwimmerFields>({
-    birthDate: "2008-05-15",
-    primaryStroke: "freestyle",
-    secondaryStroke: "backstroke",
-    coachName: "Coach Martinez",
-    goals: "Qualify for regionals in 100m freestyle",
-    teams: [
-      { id: "1", type: "club", name: "Aquatic Thunder SC" },
-      { id: "2", type: "national", name: "USA Swimming Junior Team" },
-    ],
+    birthDate: "",
+    primaryStroke: "",
+    secondaryStroke: "",
+    coachName: "",
+    goals: "",
+    teams: [],
   })
   
   // Parent-specific fields
   const [parentFields, setParentFields] = useState<ParentFields>({
-    phone: "(555) 123-4567",
-    address: "123 Main Street, Springfield",
-    emergencyContact: "Grandma Wilson",
-    emergencyPhone: "(555) 987-6543",
+    phone: "",
+    address: "",
+    emergencyContact: "",
+    emergencyPhone: "",
     notificationPreference: "all",
-    childSwimmerFields: [
-      {
-        childId: "child-1",
-        birthDate: "2012-03-20",
-        primaryStroke: "freestyle",
-        secondaryStroke: "backstroke",
-        coachName: "Coach Martinez",
-        goals: "Improve technique and have fun",
-        teams: [{ id: "1", type: "club", name: "Aquatic Thunder SC" }],
-      },
-      {
-        childId: "child-2",
-        birthDate: "2014-07-10",
-        primaryStroke: "butterfly",
-        secondaryStroke: "freestyle",
-        coachName: "Coach Martinez",
-        goals: "Learn all four strokes",
-        teams: [{ id: "1", type: "club", name: "Aquatic Thunder SC" }],
-      },
-    ],
+    childSwimmerFields: [],
   })
   
   // Coach-specific fields
   const [coachFields, setCoachFields] = useState<CoachFields>({
-    phone: "(555) 456-7890",
+    phone: "",
     companyEmail: "",
     isVerified: false,
     verificationPending: false,
-    clubName: "Aquatic Thunder Swim Club",
-    certification: "USA Swimming Level 3",
-    yearsExperience: "12",
-    specializations: ["Sprint Freestyle", "Butterfly", "Youth Development"],
-    bio: "Passionate about developing young swimmers and helping them reach their full potential in and out of the pool.",
+    clubName: "",
+    certification: "",
+    yearsExperience: "",
+    specializations: [],
+    bio: "",
   })
   
   const [newSpecialization, setNewSpecialization] = useState("")
   const [newTeam, setNewTeam] = useState<{ type: TeamType; name: string }>({ type: "club", name: "" })
   const [isSaving, setIsSaving] = useState(false)
   const [selectedChildIndex, setSelectedChildIndex] = useState(0)
+
+  useEffect(() => {
+    if (user?.role !== "parent" || !user.children?.length) return
+    setParentFields((p) => ({
+      ...p,
+      childSwimmerFields: user.children!.map((c) => ({
+        childId: c.id,
+        birthDate: "",
+        primaryStroke: "",
+        secondaryStroke: "",
+        coachName: "",
+        goals: "",
+        teams: [],
+      })),
+    }))
+  }, [user?.role, user?.children])
 
   const getInitials = (name: string) => {
     return name
@@ -162,18 +158,23 @@ export function EditProfile() {
 
   const handleSave = async () => {
     setIsSaving(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    
-    if (user) {
-      setUser({
-        ...user,
-        name,
-        email,
+    try {
+      const result = await updateProfileAction({
+        displayName: name.trim(),
+        email: email.trim(),
       })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      if (result.user) {
+        setUser(result.user)
+      }
+      toast.success("Profile updated.")
+      setCurrentView("profile")
+    } finally {
+      setIsSaving(false)
     }
-    
-    setIsSaving(false)
-    setCurrentView("profile")
   }
 
   const handleVerifyCoachEmail = async () => {

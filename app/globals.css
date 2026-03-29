@@ -183,12 +183,16 @@
   
   /* iOS-style list item */
   .list-item-ios {
-    @apply flex items-center gap-3 px-4 py-3 active:bg-muted/60 transition-colors touch-target;
+    @apply flex items-center gap-3 px-4 py-3 active:bg-muted/60 transition-colors;
+    min-height: 44px;
+    min-width: 44px;
   }
   
   /* Pill-style segmented control */
   .segment-pill {
-    @apply rounded-full px-4 py-2 text-sm font-medium transition-all touch-target;
+    @apply rounded-full px-4 py-2 text-sm font-medium transition-all;
+    min-height: 44px;
+    min-width: 44px;
   }
   
   /* Native sheet handle */

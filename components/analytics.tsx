@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -38,51 +38,39 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-
-// Mock analytics data
-const progressData = [
-  { date: "Week 1", freestyle: 54.2, backstroke: 62.1, butterfly: 58.3 },
-  { date: "Week 2", freestyle: 53.8, backstroke: 61.5, butterfly: 57.8 },
-  { date: "Week 3", freestyle: 53.1, backstroke: 60.8, butterfly: 57.2 },
-  { date: "Week 4", freestyle: 52.9, backstroke: 60.2, butterfly: 56.5 },
-  { date: "Week 5", freestyle: 52.5, backstroke: 59.6, butterfly: 55.9 },
-  { date: "Week 6", freestyle: 52.3, backstroke: 59.1, butterfly: 55.3 },
-  { date: "Week 7", freestyle: 52.1, backstroke: 58.7, butterfly: 54.8 },
-]
-
-const volumeData = [
-  { day: "Mon", distance: 2500 },
-  { day: "Tue", distance: 3200 },
-  { day: "Wed", distance: 1800 },
-  { day: "Thu", distance: 4000 },
-  { day: "Fri", distance: 2800 },
-  { day: "Sat", distance: 5200 },
-  { day: "Sun", distance: 0 },
-]
-
-const strokeDistribution = [
-  { name: "Freestyle", value: 45, color: "hsl(var(--chart-1))" },
-  { name: "Backstroke", value: 25, color: "hsl(var(--chart-2))" },
-  { name: "Butterfly", value: 15, color: "hsl(var(--chart-3))" },
-  { name: "Breaststroke", value: 10, color: "hsl(var(--chart-4))" },
-  { name: "IM", value: 5, color: "hsl(var(--chart-5))" },
-]
-
-const metrics = [
-  { label: "Avg Time", value: "52.8s", change: -2.4, trend: "down" },
-  { label: "Total Distance", value: "19.5km", change: 15.2, trend: "up" },
-  { label: "Sessions", value: "24", change: 8.3, trend: "up" },
-  { label: "Improvement", value: "3.2%", change: 1.1, trend: "up" },
-]
+import {
+  getLogsForCharts,
+  buildProgressByWeek,
+  buildWeeklyVolume,
+  buildStrokeDistribution,
+  buildAnalyticsMetrics,
+} from "@/lib/swim-data"
 
 const timeFilters = ["Last 7 Days", "Last 30 Days", "Last 3 Months", "All Time"]
 const strokeFilters = ["All Strokes", "Freestyle", "Backstroke", "Butterfly", "Breaststroke", "IM"]
 
 export function Analytics() {
-  const { setCurrentView, setShowPaywall, user } = useApp()
+  const { setCurrentView, setShowPaywall, user, selectedChild } = useApp()
   const [selectedTimeFilter, setSelectedTimeFilter] = useState("Last 30 Days")
   const [selectedStrokeFilter, setSelectedStrokeFilter] = useState("All Strokes")
   const isFree = user?.subscription === "free"
+
+  const logs = useMemo(
+    () => getLogsForCharts(user, selectedChild),
+    [user, selectedChild]
+  )
+
+  const progressData = useMemo(() => {
+    const rows = buildProgressByWeek(logs)
+    return rows.filter(
+      (r) =>
+        r.freestyle != null || r.backstroke != null || r.butterfly != null
+    )
+  }, [logs])
+
+  const volumeData = useMemo(() => buildWeeklyVolume(logs), [logs])
+  const strokeDistribution = useMemo(() => buildStrokeDistribution(logs), [logs])
+  const metrics = useMemo(() => buildAnalyticsMetrics(logs), [logs])
 
   const handlePremiumClick = () => {
     setShowPaywall(true)
@@ -217,62 +205,71 @@ export function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={progressData}>
-                  <defs>
-                    <linearGradient id="colorFreestyle" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis
-                    domain={["dataMin - 2", "dataMax + 2"]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => `${value}s`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="freestyle"
-                    stroke="hsl(var(--chart-1))"
-                    strokeWidth={2}
-                    fill="url(#colorFreestyle)"
-                    name="Freestyle"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="backstroke"
-                    stroke="hsl(var(--chart-2))"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Backstroke"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="butterfly"
-                    stroke="hsl(var(--chart-3))"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Butterfly"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {progressData.length === 0 ? (
+                <p className="text-sm text-muted-foreground h-full flex items-center justify-center text-center px-4">
+                  Log swims to see weekly trends by stroke.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={progressData}>
+                    <defs>
+                      <linearGradient id="colorFreestyle" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      domain={["dataMin - 2", "dataMax + 2"]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => `${value}s`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="freestyle"
+                      stroke="hsl(var(--chart-1))"
+                      strokeWidth={2}
+                      fill="url(#colorFreestyle)"
+                      name="Freestyle"
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="backstroke"
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={2}
+                      dot={false}
+                      name="Backstroke"
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="butterfly"
+                      stroke="hsl(var(--chart-3))"
+                      strokeWidth={2}
+                      dot={false}
+                      name="Butterfly"
+                      connectNulls
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="flex items-center justify-center gap-4 mt-4">
               <div className="flex items-center gap-2">
@@ -300,44 +297,50 @@ export function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={volumeData}>
-                  <XAxis
-                    dataKey="day"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => `${value / 1000}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                    formatter={(value: number) => [`${value}m`, "Distance"]}
-                  />
-                  <Bar dataKey="distance" radius={[6, 6, 0, 0]}>
-                    {volumeData.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={
-                          index === 5
-                            ? "hsl(var(--chart-1))"
-                            : "hsl(var(--chart-1) / 0.4)"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {logs.length === 0 ? (
+                <p className="text-sm text-muted-foreground h-full flex items-center justify-center text-center px-4">
+                  No logged distance yet.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={volumeData}>
+                    <XAxis
+                      dataKey="day"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => `${value / 1000}k`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      }}
+                      formatter={(value: number) => [`${value}m`, "Distance"]}
+                    />
+                    <Bar dataKey="distance" radius={[6, 6, 0, 0]}>
+                      {volumeData.map((_, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            index === 5
+                              ? "hsl(var(--chart-1))"
+                              : "hsl(var(--chart-1) / 0.4)"
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -350,41 +353,47 @@ export function Analytics() {
             <CardTitle className="text-base font-semibold">Stroke Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-6">
-              <div className="w-32 h-32">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={strokeDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={38}
-                      outerRadius={54}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {strokeDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex-1 space-y-2.5">
-                {strokeDistribution.map((stroke, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: stroke.color }}
-                      />
-                      <span className="text-sm">{stroke.name}</span>
+            {strokeDistribution.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Log swims to see stroke mix.
+              </p>
+            ) : (
+              <div className="flex items-center gap-6">
+                <div className="w-32 h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={strokeDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={38}
+                        outerRadius={54}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {strokeDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 space-y-2.5">
+                  {strokeDistribution.map((stroke, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: stroke.color }}
+                        />
+                        <span className="text-sm">{stroke.name}</span>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums">{stroke.value}%</span>
                     </div>
-                    <span className="text-sm font-semibold tabular-nums">{stroke.value}%</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

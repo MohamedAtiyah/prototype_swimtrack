@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useUser } from "@clerk/nextjs"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,25 +16,34 @@ import {
   Mail,
   ChevronRight,
 } from "lucide-react"
-import {
-  useApp,
-  UserRole,
-  User as UserType,
-  demoSwimmerProfile,
-  demoChildren,
-  demoAthletes,
-} from "@/lib/app-context"
+import { useApp, UserRole } from "@/lib/app-context"
+import { completeOnboardingAction } from "@/lib/actions/app-data"
 
 interface AccountSetupProps {
   role: UserRole
 }
 
 export function AccountSetup({ role }: AccountSetupProps) {
-  const { setUser, setCurrentView } = useApp()
+  const {
+    setUser,
+    setCurrentView,
+    setSelectedChild,
+    setSelectedAthlete,
+  } = useApp()
+  const { user: clerkUser, isSignedIn } = useUser()
+  const prefilled = useRef(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [childrenNames, setChildrenNames] = useState<string[]>([""])
   const [teamName, setTeamName] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!clerkUser || prefilled.current) return
+    setName(clerkUser.fullName || "")
+    setEmail(clerkUser.primaryEmailAddress?.emailAddress || "")
+    prefilled.current = true
+  }, [clerkUser])
 
   const handleBack = () => {
     setCurrentView("onboarding")
@@ -56,20 +67,68 @@ export function AccountSetup({ role }: AccountSetupProps) {
     setChildrenNames(updated)
   }
 
-  const handleSubmit = () => {
-    const newUser: UserType = {
-      id: `user-${Date.now()}`,
-      name: name || "Demo User",
-      email: email || "demo@swimtrack.app",
-      role,
-      subscription: "free",
-      ...(role === "swimmer" && { swimmerProfile: demoSwimmerProfile }),
-      ...(role === "parent" && { children: demoChildren }),
-      ...(role === "coach" && { athletes: demoAthletes }),
+  const handleSubmit = async () => {
+    if (!role) return
+    if (!isSignedIn) {
+      toast.error("Sign in with the header buttons to save your SwimTrack profile.")
+      return
     }
 
-    setUser(newUser)
-    setCurrentView("dashboard")
+    const trimmedName = name.trim()
+    let trimmedEmail = email.trim()
+    if (!trimmedName) {
+      toast.error("Please enter your name.")
+      return
+    }
+    if (!trimmedEmail && clerkUser?.primaryEmailAddress?.emailAddress) {
+      trimmedEmail = clerkUser.primaryEmailAddress.emailAddress
+    }
+    if (!trimmedEmail) {
+      toast.error("Please enter your email.")
+      return
+    }
+
+    if (role === "parent") {
+      const kids = childrenNames.map((n) => n.trim()).filter(Boolean)
+      if (kids.length === 0) {
+        toast.error("Add at least one child name.")
+        return
+      }
+    }
+
+    setSubmitting(true)
+    try {
+      const result = await completeOnboardingAction({
+        role,
+        displayName: trimmedName,
+        email: trimmedEmail,
+        childrenNames: role === "parent" ? childrenNames : undefined,
+        teamName: role === "coach" ? teamName : undefined,
+      })
+
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+
+      if (result.user) {
+        setUser(result.user)
+        if (result.user.role === "parent" && result.user.children?.[0]) {
+          setSelectedChild(result.user.children[0])
+        } else {
+          setSelectedChild(null)
+        }
+        if (result.user.role === "coach" && result.user.athletes?.[0]) {
+          setSelectedAthlete(result.user.athletes[0])
+        } else {
+          setSelectedAthlete(null)
+        }
+        setCurrentView("dashboard")
+        toast.success("Profile saved.")
+      }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const getRoleTitle = () => {
@@ -100,11 +159,10 @@ export function AccountSetup({ role }: AccountSetupProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col safe-area-inset scroll-bounce">
-      {/* Header with safe area */}
       <div className="flex items-center gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-border">
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={handleBack}
           className="w-11 h-11 rounded-2xl press-scale"
         >
@@ -118,7 +176,6 @@ export function AccountSetup({ role }: AccountSetupProps) {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 p-5 pb-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold mb-2">{getRoleTitle()}</h1>
@@ -126,7 +183,6 @@ export function AccountSetup({ role }: AccountSetupProps) {
         </div>
 
         <div className="space-y-6">
-          {/* Common fields */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-medium">Your Name</Label>
@@ -159,7 +215,6 @@ export function AccountSetup({ role }: AccountSetupProps) {
             </div>
           </div>
 
-          {/* Role-specific fields */}
           {role === "parent" && (
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
@@ -212,21 +267,21 @@ export function AccountSetup({ role }: AccountSetupProps) {
                 className="h-13 border-0 bg-muted/50 text-base"
               />
               <p className="text-sm text-muted-foreground">
-                You can add athletes after setting up your account
+                Add athletes from your dashboard after setup.
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Footer */}
       <div className="p-5 pt-0 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <Button
           size="lg"
           className="w-full h-14 text-lg font-semibold rounded-2xl press-scale"
           onClick={handleSubmit}
+          disabled={submitting}
         >
-          Get Started
+          {submitting ? "Saving..." : "Get Started"}
           <ChevronRight className="ml-2 w-5 h-5" />
         </Button>
         <p className="text-center text-xs text-muted-foreground mt-4">

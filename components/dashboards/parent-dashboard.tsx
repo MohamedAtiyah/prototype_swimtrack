@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useApp, Swimmer } from "@/lib/app-context"
+import { useApp } from "@/lib/app-context"
 import { BottomNav } from "@/components/navigation/bottom-nav"
 import {
   Waves,
@@ -31,36 +31,40 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts"
-
-// Mock data for children performance
-const childPerformanceData = {
-  "child-1": [
-    { date: "Mar 1", time: 30.2 },
-    { date: "Mar 8", time: 29.8 },
-    { date: "Mar 15", time: 29.3 },
-    { date: "Mar 22", time: 28.9 },
-    { date: "Mar 28", time: 28.6 },
-  ],
-  "child-2": [
-    { date: "Mar 1", time: 28.5 },
-    { date: "Mar 8", time: 28.1 },
-    { date: "Mar 15", time: 27.6 },
-    { date: "Mar 22", time: 27.3 },
-    { date: "Mar 27", time: 27.1 },
-  ],
-}
+import {
+  buildFreestyle100ChartData,
+  improvementPercentLabel,
+} from "@/lib/swim-data"
 
 export function ParentDashboard() {
   const { user, setCurrentView, selectedChild, setSelectedChild } = useApp()
   const children = user?.children || []
-  const [activeChild, setActiveChild] = useState<Swimmer | null>(
-    selectedChild || children[0] || null
-  )
 
-  const handleChildSelect = (child: Swimmer) => {
-    setActiveChild(child)
+  useEffect(() => {
+    if (children.length === 0) {
+      if (selectedChild !== null) setSelectedChild(null)
+      return
+    }
+    const matches =
+      selectedChild && children.some((c) => c.id === selectedChild.id)
+    if (!matches) {
+      setSelectedChild(children[0])
+    }
+  }, [children, selectedChild, setSelectedChild])
+
+  const activeChild =
+    selectedChild && children.some((c) => c.id === selectedChild.id)
+      ? selectedChild
+      : children[0] ?? null
+
+  const handleChildSelect = (child: (typeof children)[0]) => {
     setSelectedChild(child)
   }
+
+  const performanceData = activeChild
+    ? buildFreestyle100ChartData(activeChild.logs)
+    : []
+  const progressLabel = improvementPercentLabel(performanceData)
 
   const getInitials = (name: string) => {
     return name
@@ -73,10 +77,6 @@ export function ParentDashboard() {
   const formatTime = (time: string) => {
     return time.includes(":") ? time : `${time}s`
   }
-
-  const performanceData =
-    childPerformanceData[activeChild?.id as keyof typeof childPerformanceData] ||
-    childPerformanceData["child-1"]
 
   return (
     <div className="min-h-screen bg-background pb-28 scroll-bounce">
@@ -202,7 +202,9 @@ export function ParentDashboard() {
               <div className="w-11 h-11 mx-auto mb-2 rounded-2xl bg-chart-3/10 flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-chart-3" />
               </div>
-              <p className="text-2xl font-bold text-chart-3 tabular-nums">+3.1%</p>
+              <p className="text-2xl font-bold text-chart-3 tabular-nums">
+                {progressLabel}
+              </p>
               <p className="text-[11px] text-muted-foreground font-medium">Progress</p>
             </CardContent>
           </Card>
@@ -230,41 +232,49 @@ export function ParentDashboard() {
           </CardHeader>
           <CardContent className="pb-4">
             <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={performanceData}>
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis
-                    domain={["dataMin - 1", "dataMax + 1"]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => `${value}s`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                    formatter={(value: number) => [`${value}s`, "Time"]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="time"
-                    stroke="hsl(var(--chart-1))"
-                    strokeWidth={3}
-                    dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 0, r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {performanceData.length === 0 ? (
+                <p className="text-sm text-muted-foreground h-full flex items-center justify-center text-center px-4">
+                  {activeChild
+                    ? "Log 100m freestyle swims for this swimmer to see progress."
+                    : "Add a child profile to get started."}
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={performanceData}>
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      domain={["dataMin - 1", "dataMax + 1"]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => `${value}s`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      }}
+                      formatter={(value: number) => [`${value}s`, "Time"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="time"
+                      stroke="hsl(var(--chart-1))"
+                      strokeWidth={3}
+                      dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 0, r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>

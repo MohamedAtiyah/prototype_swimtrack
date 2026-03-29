@@ -12,6 +12,7 @@ import { Pricing } from "@/components/subscription/pricing"
 import { ProfileManagement } from "@/components/profile-management"
 import { EditProfile } from "@/components/edit-profile"
 import { Paywall } from "@/components/subscription/paywall"
+import { AppBootstrap } from "@/components/app-bootstrap"
 
 function AppContent() {
   const { currentView, user, showPaywall } = useApp()
@@ -57,7 +58,9 @@ function AppContent() {
 export default function Home() {
   return (
     <AppProvider>
-      <AppContent />
+      <AppBootstrap>
+        <AppContent />
+      </AppBootstrap>
     </AppProvider>
   )
 }

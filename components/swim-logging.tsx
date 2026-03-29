@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useUser } from "@clerk/nextjs"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +21,7 @@ import {
   Activity,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createSwimLogAction } from "@/lib/actions/app-data"
 
 const strokes = [
   { id: "freestyle", name: "Freestyle", shortName: "Free", color: "bg-chart-1" },
@@ -31,7 +34,14 @@ const strokes = [
 const distances = [25, 50, 100, 200, 400, 800, 1500]
 
 export function SwimLogging() {
-  const { setCurrentView } = useApp()
+  const {
+    setCurrentView,
+    user,
+    setUser,
+    selectedChild,
+    selectedAthlete,
+  } = useApp()
+  const { isSignedIn } = useUser()
   const [selectedStroke, setSelectedStroke] = useState(strokes[0])
   const [selectedDistance, setSelectedDistance] = useState(100)
   const [minutes, setMinutes] = useState("")
@@ -58,16 +68,58 @@ export function SwimLogging() {
     setSplits(updated)
   }
 
-  const handleSave = () => {
+  const targetSwimmerId =
+    user?.role === "swimmer"
+      ? user.swimmerProfile?.id
+      : user?.role === "parent"
+        ? selectedChild?.id
+        : user?.role === "coach"
+          ? selectedAthlete?.id ?? user.athletes?.[0]?.id
+          : undefined
+
+  const handleSave = async () => {
+    if (!isSignedIn) {
+      toast.error("Sign in to save swims to your account.")
+      return
+    }
+    if (!targetSwimmerId) {
+      toast.error(
+        user?.role === "coach"
+          ? "Add an athlete from your dashboard first."
+          : user?.role === "parent"
+            ? "Select a child from the family dashboard."
+            : "No swimmer profile found."
+      )
+      return
+    }
+
     setIsSaving(true)
-    // Simulate save
-    setTimeout(() => {
-      setIsSaving(false)
+    try {
+      const timeDisplay = formatTimeDisplay()
+      const result = await createSwimLogAction({
+        swimmerId: targetSwimmerId,
+        date: new Date().toISOString().slice(0, 10),
+        stroke: selectedStroke.name,
+        distance: selectedDistance,
+        timeDisplay,
+        splits: splits.filter((s) => s.trim().length > 0),
+        notes: notes.trim() || undefined,
+      })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      if (result.user) {
+        setUser(result.user)
+      }
       setSaved(true)
+      toast.success("Swim saved.")
       setTimeout(() => {
         setCurrentView("dashboard")
-      }, 1000)
-    }, 500)
+      }, 800)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const formatTimeDisplay = () => {

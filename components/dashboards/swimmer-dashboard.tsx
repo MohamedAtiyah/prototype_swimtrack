@@ -22,21 +22,18 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts"
-
-// Mock performance data for the chart
-const performanceData = [
-  { date: "Mar 1", time: 54.2 },
-  { date: "Mar 5", time: 53.8 },
-  { date: "Mar 10", time: 53.1 },
-  { date: "Mar 15", time: 52.9 },
-  { date: "Mar 20", time: 52.5 },
-  { date: "Mar 25", time: 52.3 },
-  { date: "Mar 28", time: 52.1 },
-]
+import {
+  buildFreestyle100ChartData,
+  improvementPercentLabel,
+} from "@/lib/swim-data"
 
 export function SwimmerDashboard() {
   const { user, setCurrentView, setShowPaywall } = useApp()
   const profile = user?.swimmerProfile
+  const performanceData = profile
+    ? buildFreestyle100ChartData(profile.logs)
+    : []
+  const improvementDisplay = improvementPercentLabel(performanceData)
 
   const handlePremiumClick = () => {
     setShowPaywall(true)
@@ -106,7 +103,9 @@ export function SwimmerDashboard() {
               <div className="w-11 h-11 mx-auto mb-2 rounded-2xl bg-chart-3/10 flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-chart-3" />
               </div>
-              <p className="text-2xl font-bold text-chart-3 tabular-nums">+2.4%</p>
+              <p className="text-2xl font-bold text-chart-3 tabular-nums">
+                {improvementDisplay}
+              </p>
               <p className="text-[11px] text-muted-foreground font-medium">Improvement</p>
             </CardContent>
           </Card>
@@ -132,43 +131,53 @@ export function SwimmerDashboard() {
           </CardHeader>
           <CardContent className="pb-4">
             <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={performanceData}>
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    className="text-muted-foreground"
-                  />
-                  <YAxis
-                    domain={["dataMin - 1", "dataMax + 1"]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    className="text-muted-foreground"
-                    tickFormatter={(value) => `${value}s`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                    formatter={(value: number) => [`${value}s`, "Time"]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="time"
-                    stroke="hsl(var(--chart-1))"
-                    strokeWidth={3}
-                    dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 0, r: 4 }}
-                    activeDot={{ r: 6, stroke: "hsl(var(--chart-1))", strokeWidth: 2 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {performanceData.length === 0 ? (
+                <p className="text-sm text-muted-foreground h-full flex items-center justify-center text-center px-4">
+                  Log 100m freestyle swims to see your progress here.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={performanceData}>
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      className="text-muted-foreground"
+                    />
+                    <YAxis
+                      domain={["dataMin - 1", "dataMax + 1"]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      className="text-muted-foreground"
+                      tickFormatter={(value) => `${value}s`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      }}
+                      formatter={(value: number) => [`${value}s`, "Time"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="time"
+                      stroke="hsl(var(--chart-1))"
+                      strokeWidth={3}
+                      dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 0, r: 4 }}
+                      activeDot={{
+                        r: 6,
+                        stroke: "hsl(var(--chart-1))",
+                        strokeWidth: 2,
+                      }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>

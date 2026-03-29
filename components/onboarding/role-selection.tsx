@@ -59,7 +59,7 @@ export function RoleSelection() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2 text-balance">Welcome to SwimTrack</h1>
           <p className="text-muted-foreground text-balance">
-            Select your role to get started with a personalized experience
+            Sign in with the buttons above, then choose your role. Your data is saved to your account.
           </p>
         </div>
 

@@ -1,12 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useApp } from "@/lib/app-context"
+import { addAthleteAction } from "@/lib/actions/app-data"
 import { BottomNav } from "@/components/navigation/bottom-nav"
 import {
   Waves,
@@ -29,23 +38,60 @@ import {
   Cell,
 } from "recharts"
 import { cn } from "@/lib/utils"
-
-// Mock team performance data
-const teamPerformanceData = [
-  { name: "Alex", improvement: 2.4 },
-  { name: "Emma", improvement: 3.1 },
-  { name: "Jake", improvement: 1.8 },
-  { name: "Sarah", improvement: 4.2 },
-  { name: "Marcus", improvement: 2.9 },
-]
+import {
+  buildTeamImprovementChart,
+  averageTeamImprovement,
+} from "@/lib/swim-data"
 
 const strokeFilters = ["All", "Freestyle", "Backstroke", "Butterfly", "Breaststroke", "IM"]
 
 export function CoachDashboard() {
-  const { user, setCurrentView, setShowPaywall } = useApp()
+  const {
+    user,
+    setUser,
+    setCurrentView,
+    setShowPaywall,
+    selectedAthlete,
+    setSelectedAthlete,
+  } = useApp()
   const athletes = user?.athletes || []
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState("All")
+  const [addOpen, setAddOpen] = useState(false)
+  const [newAthleteName, setNewAthleteName] = useState("")
+  const [adding, setAdding] = useState(false)
+
+  useEffect(() => {
+    const list = user?.athletes ?? []
+    if (list.length === 0) {
+      if (selectedAthlete !== null) setSelectedAthlete(null)
+      return
+    }
+    const matches =
+      selectedAthlete && list.some((a) => a.id === selectedAthlete.id)
+    if (!matches) {
+      setSelectedAthlete(list[0])
+    }
+  }, [user?.athletes, selectedAthlete, setSelectedAthlete])
+
+  const handleAddAthlete = async () => {
+    setAdding(true)
+    try {
+      const result = await addAthleteAction(newAthleteName)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      if (result.user) {
+        setUser(result.user)
+      }
+      setAddOpen(false)
+      setNewAthleteName("")
+      toast.success("Athlete added.")
+    } finally {
+      setAdding(false)
+    }
+  }
 
   const filteredAthletes = athletes.filter((athlete) =>
     athlete.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -69,6 +115,8 @@ export function CoachDashboard() {
 
   const totalLogs = athletes.reduce((sum, a) => sum + a.logs.length, 0)
   const totalPBs = athletes.reduce((sum, a) => sum + a.personalBests.length, 0)
+  const teamPerformanceData = buildTeamImprovementChart(athletes)
+  const avgImprovementDisplay = averageTeamImprovement(athletes)
 
   return (
     <div className="min-h-screen bg-background pb-28 scroll-bounce">
@@ -136,7 +184,9 @@ export function CoachDashboard() {
           <Card className="shadow-lg border-0 press-scale">
             <CardContent className="p-3 text-center">
               <TrendingUp className="w-5 h-5 mx-auto mb-1 text-chart-4" />
-              <p className="text-xl font-bold text-chart-4 tabular-nums">+2.9%</p>
+              <p className="text-xl font-bold text-chart-4 tabular-nums">
+                {avgImprovementDisplay}
+              </p>
               <p className="text-[10px] text-muted-foreground font-medium">Avg</p>
             </CardContent>
           </Card>
@@ -162,43 +212,50 @@ export function CoachDashboard() {
           </CardHeader>
           <CardContent className="pb-4">
             <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={teamPerformanceData} layout="vertical">
-                  <XAxis
-                    type="number"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11 }}
-                    width={50}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                    formatter={(value: number) => [`${value}%`, "Improvement"]}
-                  />
-                  <Bar dataKey="improvement" radius={[0, 6, 6, 0]}>
-                    {teamPerformanceData.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={`hsl(var(--chart-${(index % 5) + 1}))`}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {teamPerformanceData.length === 0 ? (
+                <p className="text-sm text-muted-foreground h-full flex items-center justify-center text-center px-4">
+                  Add athletes and repeated logs for the same stroke and distance
+                  to see improvement trends.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={teamPerformanceData} layout="vertical">
+                    <XAxis
+                      type="number"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      width={50}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      }}
+                      formatter={(value: number) => [`${value}%`, "Improvement"]}
+                    />
+                    <Bar dataKey="improvement" radius={[0, 6, 6, 0]}>
+                      {teamPerformanceData.map((_, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={`hsl(var(--chart-${(index % 5) + 1}))`}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -241,7 +298,12 @@ export function CoachDashboard() {
       <div className="px-4 mt-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Athletes</h2>
-          <Button variant="ghost" size="sm" className="text-primary h-9 px-3 press-scale">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-primary h-9 px-3 press-scale"
+            onClick={() => setAddOpen(true)}
+          >
             Add New
             <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
@@ -250,7 +312,21 @@ export function CoachDashboard() {
         <Card className="border-0 shadow-sm overflow-hidden">
           <div className="divide-y divide-border">
             {filteredAthletes.map((athlete) => (
-              <div key={athlete.id} className="list-item-ios">
+              <div
+                key={athlete.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedAthlete(athlete)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ")
+                    setSelectedAthlete(athlete)
+                }}
+                className={cn(
+                  "list-item-ios cursor-pointer",
+                  selectedAthlete?.id === athlete.id &&
+                    "bg-primary/5 ring-1 ring-primary/20"
+                )}
+              >
                 <Avatar className="w-12 h-12">
                   <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-sm font-semibold">
                     {getInitials(athlete.name)}
@@ -260,7 +336,9 @@ export function CoachDashboard() {
                   <div className="flex items-center gap-2">
                     <p className="font-semibold truncate">{athlete.name}</p>
                     <Badge variant="secondary" className="text-[10px] shrink-0 px-2">
-                      {athlete.personalBests[0]?.stroke || "Freestyle"}
+                      {athlete.personalBests[0]?.stroke ||
+                        athlete.logs[0]?.stroke ||
+                        "—"}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
@@ -276,10 +354,17 @@ export function CoachDashboard() {
                 </div>
                 <div className="text-right">
                   <p className="font-semibold tabular-nums">
-                    {formatTime(athlete.personalBests[0]?.time || "0")}
+                    {athlete.personalBests[0]
+                      ? formatTime(athlete.personalBests[0].time)
+                      : athlete.logs[0]
+                        ? formatTime(athlete.logs[0].time)
+                        : "—"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {athlete.personalBests[0]?.distance || 50}m
+                    {athlete.personalBests[0]?.distance ??
+                      athlete.logs[0]?.distance ??
+                      "—"}
+                    {athlete.personalBests[0] || athlete.logs[0] ? "m" : ""}
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground/50 ml-1" />
@@ -311,6 +396,28 @@ export function CoachDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add athlete</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Athlete name"
+            value={newAthleteName}
+            onChange={(e) => setNewAthleteName(e.target.value)}
+            className="h-11"
+          />
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddAthlete} disabled={adding}>
+              {adding ? "Adding…" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BottomNav />
     </div>
