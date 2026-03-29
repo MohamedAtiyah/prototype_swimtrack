@@ -1,7 +1,8 @@
-import { neon } from "@neondatabase/serverless"
-import { drizzle } from "drizzle-orm/neon-http"
+import { Pool } from "@neondatabase/serverless"
+import { drizzle } from "drizzle-orm/neon-serverless"
 import * as schema from "./schema"
 
+let _pool: Pool | undefined
 let _db: ReturnType<typeof drizzle<typeof schema>> | undefined
 
 export function getDb() {
@@ -12,7 +13,9 @@ export function getDb() {
         "DATABASE_URL is not set. Add your Neon connection string to .env.local."
       )
     }
-    _db = drizzle(neon(url), { schema })
+    // Pool + neon-serverless supports transactions; neon-http does not.
+    _pool = new Pool({ connectionString: url })
+    _db = drizzle(_pool, { schema })
   }
   return _db
 }
